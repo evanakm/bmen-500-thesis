@@ -28,7 +28,10 @@ void setup() {
 void readByteFromBus(){
   storage[counter & 0x3f] = PINB;
   counter++;
-  PORTD &= 0b11101111; //sets interruptTx low to get ready for next
+  PORTD |= 0b00010000; //Set port 4 high, triggering interrupt on slave
+  if (counter < NUMBER_OF_SAMPLES) {
+    PORTD &= 0b11101111; //sets interruptTx low to get ready for next
+  }
 }
 
 void loop() {
@@ -36,12 +39,14 @@ void loop() {
   InitializeMaster();
   delay(5000);
   float timestart = millis();
-
+  
+  PORTD |= 0b00010000; //Set port 4 high, triggering interrupt on slave
+  
   do{
     //Serial.print("counter = ");
     //Serial.println(counter);
     //delayMicroseconds(500);
-    PORTD |= 0b00010000; //Set port 4 high, triggering interrupt on slave
+    
     sleep_mode(); //Wait for response, will be interrupted. counter++ happens after the interrupt
     //counter++;
   }while(counter < NUMBER_OF_SAMPLES);
