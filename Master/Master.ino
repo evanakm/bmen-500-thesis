@@ -16,17 +16,16 @@ static uint8_t inputByteArray[255];
 static uint8_t errorFlag;
 static uint32_t ticksElapsed;
 
+static uint8_t failOuterLoop;
+static uint8_t failInnerLoop;
+static uint8_t failWrongValue;
+static uint8_t failWrongCheck;
+
 static inline void cmdWrite(uint8_t cmd){
-  //Serial.println(MISO);
-  //while(MISO == 0) Serial.print("?");
   ENABLE_WRITE;
   WRITE_BUS(cmd);
   MOSI_HIGH;
   while(~MISO);//Wait for acknowledgement. TODO add a timeout
-  //Serial.print("\n");
-  //miso = MISO;
-  //Serial.print(MISO);
-  //Serial.println(" = MISO");
   ENABLE_READ;
   MOSI_LOW;
   while(MISO);
@@ -57,16 +56,20 @@ static inline void cmdReadN(uint8_t N){
   
   ticksElapsed = 0;
   TCNT2 = 0;
-  
+
   while(outerCounter < N){
     while(innerCounter < 255){
-      while(~MISO);//wait for high      
+      while(~MISO);//wait for high
       //The "real" line of code is:
       //inputByteArray[innerCounter] = 0x0f & PINB;
       //which will be handled at the bottom of the outer loop
       //For the sake of testing, we just check one byte at a time on the fly.
       inputByte = 0x0f & PINB;
-      if(inputByte != 0x0f & innerCounter) errorFlag = 1;
+      if(inputByte != (0x0f & innerCounter)) {
+        errorFlag = 1;
+        sei();
+        return;
+      }
 
       innerCounter++;
             
@@ -78,7 +81,6 @@ static inline void cmdReadN(uint8_t N){
     //Do something with the array here
     innerCounter = 0;
     outerCounter++;
-    //Serial.println(ticksElapsed);
   }
   sei();
 
@@ -110,14 +112,6 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  //cmdWrite(10);
-  //Serial.println("Tick");
-  //cmdWrite(12);
-  //Serial.println("Tock");
-
-  //Serial.print("MISO = ");
-  //Serial.println(MISO);
-  
   int blocks = 15;
   cmdReadN(blocks);
 
@@ -141,6 +135,8 @@ void loop() {
   //Throughput = bytes transmitted / transmissionTime
 
   Serial.print("Throughput = ");
-  Serial.println(blocks * 127.5 / transmissionTime);
-
+  Serial.print(blocks * 127.5 / transmissionTime);
+  Serial.println(" bytes per second");
+  
+  while(1);
 }

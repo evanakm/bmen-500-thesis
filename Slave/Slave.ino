@@ -13,6 +13,8 @@ connects pin 4 on Slave to pin 3 on Master.
 #define DISABLE_TIMER_INTERRUPT TIMSK0 &= ~(1 << TOIE0)
 #define ENABLE_TIMER_INTERRUPT TIMSK0 |= (1 << OCIE0A)
 
+#define READ_N_TIMING_DELAY NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
+
 enum state {   STATE_READY = 0b00000000,
         STATE_READING = 0b00000001,
         STATE_WRITE_1 = 0b00000100,
@@ -24,26 +26,13 @@ static uint8_t readByte;
 static uint8_t numberToWrite; 
 static uint8_t dummy;
 
+static uint8_t interruptFlag; //Part of a workaround that should eventually be removed
+
 static enum state currentState;
 
-static inline void reset(){
-  //Reset any other global variables
-  currentState = STATE_READY;
-  dummy = 0; //For testing. Will be removed.
-  MISO_LOW;
-}
-
 static inline void echoMaster(){
-  NOP;
-  NOP;
-  NOP;
-  NOP;
   MISO_HIGH;
   while(MOSI);
-  NOP;
-  NOP;
-  NOP;
-  NOP;
   MISO_LOW;
 }
 
@@ -62,8 +51,7 @@ static inline void writeToBus(uint8_t dataByte){
 }
 
 static inline void writeNBytes(uint8_t N){
-
-
+  
   static uint8_t outerCounter = 0;
   static uint8_t innerCounter = 0;
     
@@ -73,8 +61,11 @@ static inline void writeNBytes(uint8_t N){
   while(MOSI);
   MISO_LOW;
 
-  //attachInterrupt(digitalPinToInterrupt(3), onInterrupt, RISING);
+  READ_N_TIMING_DELAY;
+  attachInterrupt(digitalPinToInterrupt(3), onInterrupt, RISING);
   DISABLE_TIMER_INTERRUPT;
+
+  interruptFlag = 1; //Workaround. attachInterrupt is causing onInterrupt() to run.
 
   while(outerCounter < N){
     //Serial.print("outerCounter = ");
@@ -83,20 +74,22 @@ static inline void writeNBytes(uint8_t N){
       //Serial.print("innerCounter = ");
       //Serial.println(innerCounter);
       if(currentState == STATE_INTERRUPTED) {
-        Serial.println("Maybe it's interrupted...");      
+        Serial.println("Maybe it's interrupted...");
+        while(1);     
         //MISO is low at this point, so does not need to be reset
         currentState = STATE_READY;
         ENABLE_READ;
         ENABLE_TIMER_INTERRUPT;
-        //detachInterrupt(digitalPinToInterrupt(3));
+        detachInterrupt(digitalPinToInterrupt(3));
+        interruptFlag = 0; //Workaround. Remove when interrupt issue is fixed.
         return;
       }
 
       WRITE_BUS(innerCounter & 0x0f);
       MISO_HIGH;
-      NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;
+      READ_N_TIMING_DELAY;
       MISO_LOW;
-      NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;
+      READ_N_TIMING_DELAY;
       innerCounter++;
     }
     innerCounter = 0;
@@ -105,8 +98,8 @@ static inline void writeNBytes(uint8_t N){
   
   ENABLE_READ;
   ENABLE_TIMER_INTERRUPT;
-  //detachInterrupt(digitalPinToInterrupt(3));
-  
+  detachInterrupt(digitalPinToInterrupt(3));
+  interruptFlag = 0; //Workaround. Remove when interrupt issue is fixed.
 }
 
 static inline void mapCommandToState(uint8_t cmd){
@@ -152,8 +145,8 @@ static inline void waitForRisingEdge(){
     case STATE_READY:
       while(~MOSI);
       readByte = 0x3f & PINB;
-      Serial.print("readByte = ");
-      Serial.println(readByte);      
+      //Serial.print("readByte = ");
+      //Serial.println(readByte);      
       mapCommandToState(readByte);
       echoMaster();
       break;
@@ -169,14 +162,14 @@ static inline void waitForRisingEdge(){
     case STATE_WRITE_N_STEP_1:
       while(~MOSI);
       numberToWrite = 0x3f & PINB; //readByte could be used for this, but keeping the code readable.
-      Serial.print("numberToWrite = ");
-      Serial.println(numberToWrite);
+      //Serial.print("numberToWrite = ");
+      //Serial.println(numberToWrite);
       currentState = STATE_WRITE_N_STEP_2;
       echoMaster();
       break;
     case STATE_WRITE_N_STEP_2:
       while(~MOSI);
-      Serial.println("Now writing");
+      //Serial.println("Now writing");
       writeNBytes(numberToWrite);
       break;
     default:
@@ -198,8 +191,9 @@ static inline void waitForRisingEdge(){
 /*
 This will be called from the writing state, that is, the Slave has control of the bus.
 */
-static inline void onInterrupt(){
-  Serial.println("Interrupt triggered");
+static void onInterrupt(){
+  //Serial.println("Interrupt triggered");
+  if(interruptFlag == 0) return;
   currentState = STATE_INTERRUPTED;
 }
 
@@ -210,10 +204,21 @@ void setup() {
   DDRD |= 0b00010000;
   DDRD &= 0b11110111;
   reset();
+  Serial.print("Current state = ");
+  Serial.println(currentState);
+}
+
+static inline void reset(){
+  //Reset any other global variables
+  currentState = STATE_READY;
+  dummy = 0; //For testing. Will be removed.
+  MISO_LOW;
+  interruptFlag = 0; //A workaround. Will be removed.
 }
 
 void loop() {
   //MISO_HIGH;
   waitForRisingEdge();
   // put your main code here, to run repeatedly:
+  //while(1);
 }
