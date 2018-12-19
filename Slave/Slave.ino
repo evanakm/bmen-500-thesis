@@ -74,8 +74,6 @@ static inline void writeNBytes(uint8_t N){
       //Serial.print("innerCounter = ");
       //Serial.println(innerCounter);
       if(currentState == STATE_INTERRUPTED) {
-        Serial.println("Maybe it's interrupted...");
-        while(1);     
         //MISO is low at this point, so does not need to be reset
         currentState = STATE_READY;
         ENABLE_READ;
@@ -153,8 +151,9 @@ static inline void waitForRisingEdge(){
     case STATE_WRITE_1:
       while(~MOSI);
       readByte = 0x3f & PINB;
-      Serial.print("readByte = ");
-      Serial.println(readByte);      
+      //For debugging
+      //Serial.print("readByte = ");
+      //Serial.println(readByte);      
       //Either the data would be primed to write, or else it would be acquired here.
       //For the sake of testing, just send a dummy value.
       writeToBus(dummy++ & 0x0f);
@@ -162,6 +161,7 @@ static inline void waitForRisingEdge(){
     case STATE_WRITE_N_STEP_1:
       while(~MOSI);
       numberToWrite = 0x3f & PINB; //readByte could be used for this, but keeping the code readable.
+      //For debugging
       //Serial.print("numberToWrite = ");
       //Serial.println(numberToWrite);
       currentState = STATE_WRITE_N_STEP_2;
@@ -169,6 +169,7 @@ static inline void waitForRisingEdge(){
       break;
     case STATE_WRITE_N_STEP_2:
       while(~MOSI);
+      //For debugging
       //Serial.println("Now writing");
       writeNBytes(numberToWrite);
       break;
@@ -179,8 +180,9 @@ static inline void waitForRisingEdge(){
       */
       while(~MOSI);
       readByte = 0x3f & PINB;
-      Serial.print("readByte = ");
-      Serial.println(readByte);      
+      //For debugging
+      //Serial.print("readByte = ");
+      //Serial.println(readByte);      
       mapCommandToState(readByte);
       echoMaster();
       break;    
@@ -199,13 +201,11 @@ static void onInterrupt(){
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
-  Serial.println("Starting the Slave");
+  //Serial.begin(115200);
+  //Serial.println("Starting the Slave");
   DDRD |= 0b00010000;
   DDRD &= 0b11110111;
   reset();
-  Serial.print("Current state = ");
-  Serial.println(currentState);
 }
 
 static inline void reset(){
