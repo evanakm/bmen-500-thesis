@@ -13,7 +13,8 @@ connects pin 4 on Slave to pin 3 on Master.
 #define DISABLE_TIMER_INTERRUPT TIMSK0 &= ~(1 << TOIE0)
 #define ENABLE_TIMER_INTERRUPT TIMSK0 |= (1 << OCIE0A)
 
-#define READ_N_TIMING_DELAY NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
+#define READ_N_TIMING_DELAY_HIGH NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
+#define READ_N_TIMING_DELAY_LOW  NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
 
 enum state {   STATE_READY = 0b00000000,
         STATE_READING = 0b00000001,
@@ -51,6 +52,8 @@ static inline void writeToBus(uint8_t dataByte){
 }
 
 static inline void writeNBytes(uint8_t N){
+
+  if(N == 0) return;
   
   static uint8_t outerCounter = 0;
   static uint8_t innerCounter = 0;
@@ -61,43 +64,44 @@ static inline void writeNBytes(uint8_t N){
   while(MOSI);
   MISO_LOW;
 
-  READ_N_TIMING_DELAY;
+  //READ_N_TIMING_DELAY;
   attachInterrupt(digitalPinToInterrupt(3), onInterrupt, RISING);
   DISABLE_TIMER_INTERRUPT;
 
   interruptFlag = 1; //Workaround. attachInterrupt is causing onInterrupt() to run.
 
-  while(outerCounter < N){
-    //Serial.print("outerCounter = ");
-    //Serial.println(outerCounter);
-    while(innerCounter < 255){
-      //Serial.print("innerCounter = ");
-      //Serial.println(innerCounter);
-      if(currentState == STATE_INTERRUPTED) {
-        //MISO is low at this point, so does not need to be reset
-        currentState = STATE_READY;
-        ENABLE_READ;
-        ENABLE_TIMER_INTERRUPT;
-        detachInterrupt(digitalPinToInterrupt(3));
-        interruptFlag = 0; //Workaround. Remove when interrupt issue is fixed.
-        return;
-      }
+  static uint8_t numberOfLoops = 0;
+  static uint8_t counter = 0;
 
-      WRITE_BUS(innerCounter & 0x0f);
-      MISO_HIGH;
-      READ_N_TIMING_DELAY;
-      MISO_LOW;
-      READ_N_TIMING_DELAY;
-      innerCounter++;
+  while(outerCounter < N){
+    if(currentState == STATE_INTERRUPTED) {
+      //MISO is low at this point, so does not need to be reset
+      currentState = STATE_READY;
+      ENABLE_READ;
+      ENABLE_TIMER_INTERRUPT;
+      detachInterrupt(digitalPinToInterrupt(3));
+      interruptFlag = 0; //Workaround. Remove when interrupt issue is fixed.
+      return;
     }
-    innerCounter = 0;
-    outerCounter++;
+    
+
+    WRITE_BUS(innerCounter & 0x0f);
+    MISO_HIGH;
+    READ_N_TIMING_DELAY_HIGH;
+    MISO_LOW;
+    READ_N_TIMING_DELAY_LOW;
+    if (innerCounter == 0xff) outerCounter++;
+    innerCounter++;
   }
+
+  //static variables, so reset on exiting the function
+  outerCounter = 0;
   
   ENABLE_READ;
   ENABLE_TIMER_INTERRUPT;
   detachInterrupt(digitalPinToInterrupt(3));
   interruptFlag = 0; //Workaround. Remove when interrupt issue is fixed.
+
 }
 
 static inline void mapCommandToState(uint8_t cmd){
@@ -196,6 +200,10 @@ This will be called from the writing state, that is, the Slave has control of th
 static void onInterrupt(){
   //Serial.println("Interrupt triggered");
   if(interruptFlag == 0) return;
+  //For debugging on the scope. Remove eventually.
+  //MISO_HIGH;
+  //READ_N_TIMING_DELAY_HIGH;
+  //MISO_LOW;
   currentState = STATE_INTERRUPTED;
 }
 

@@ -56,33 +56,40 @@ static inline void cmdReadN(uint8_t N){
   
   ticksElapsed = 0;
   TCNT2 = 0;
-
+  
   while(outerCounter < N){
-    while(innerCounter < 255){
-      while(~MISO);//wait for high
-      //The "real" line of code is:
-      //inputByteArray[innerCounter] = 0x0f & PINB;
-      //which will be handled at the bottom of the outer loop
-      //For the sake of testing, we just check one byte at a time on the fly.
-      inputByte = 0x0f & PINB;
-      if(inputByte != (0x0f & innerCounter)) {
-        errorFlag = 1;
-        sei();
-        return;
-      }
-
-      innerCounter++;
-            
-      while(MISO);//wait for low
-      ticksElapsed += TCNT2;
-      TCNT2 = 0;
+    while(~MISO);//wait for high
+    //The "real" line of code is:
+    //inputByteArray[innerCounter] = 0x0f & PINB;
+    //which will be handled at the bottom of the outer loop
+    //For the sake of testing, we just check one byte at a time on the fly.
+    //inputByte = 0x0f & PINB;
+    if((0x0f & PINB) != (0x0f & innerCounter)) {
+      errorFlag = 1;
+      sei();
+      //Uncomment while debugging
+      //Serial.begin(115200);
+      //Serial.print("innerCounter = ");
+      //Serial.println(innerCounter);
+      //Serial.print("outerCounter = ");
+      //Serial.println(outerCounter);
+      return;
     }
-    
+
+    if (innerCounter == 0xff) outerCounter++;
+    innerCounter++;
+          
+    while(MISO);//wait for low
+    //ticksElapsed += TCNT2;
+    //TCNT2 = 0;
+  
     //Do something with the array here
-    innerCounter = 0;
-    outerCounter++;
+
   }
+
   sei();
+
+  outerCounter = 0;
 
 }
 
@@ -102,7 +109,7 @@ static inline void initialize(){
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
+  //Serial.begin(115200);
   Serial.println("Master beginning");
   delay(1000);
   initialize();
@@ -115,6 +122,7 @@ void loop() {
   int blocks = 15;
   cmdReadN(blocks);
 
+  Serial.begin(115200);
   if (errorFlag == 0){
     Serial.println("Transmission was successful."); 
   } else {
@@ -126,6 +134,12 @@ void loop() {
   //Time in seconds is 6.25e-8 * 1024 * ticksElapsed
 
   double transmissionTime = 6.25e-8 * 1024 * ticksElapsed;
+  //for(int i = 0; i < 255; i++){
+  //  Serial.println(inputByteArray[i]);
+  //}
+  
+  Serial.print("ticksElapsed = ");
+  Serial.println(ticksElapsed);
   Serial.print("Total transmission time = ");
   Serial.print(transmissionTime);
   Serial.println(" seconds.");
