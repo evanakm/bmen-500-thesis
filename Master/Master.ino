@@ -10,16 +10,20 @@ connects pin 4 on Slave to pin 3 on Master.
 #define MOSI_LOW PORTD &= 0xef
 #define MISO PIND & 0x08
 
+#define DISABLE_TIMER_INTERRUPT TIMSK0 &= ~(1 << TOIE0)
+#define ENABLE_TIMER_INTERRUPT TIMSK0 |= (1 << OCIE0A)
+
 static uint8_t inputByte;
-static uint8_t inputByteArray[255];
+static uint16_t inputByteArray[255];
 
 static uint8_t errorFlag;
-static uint32_t ticksElapsed;
+static uint16_t ticksElapsed;
 
 static uint8_t failOuterLoop;
 static uint8_t failInnerLoop;
 static uint8_t failWrongValue;
 static uint8_t failWrongCheck;
+static uint8_t temp;
 
 static inline void cmdWrite(uint8_t cmd){
   ENABLE_WRITE;
@@ -80,8 +84,9 @@ static inline void cmdReadN(uint8_t N){
     innerCounter++;
           
     while(MISO);//wait for low
-    //ticksElapsed += TCNT2;
-    //TCNT2 = 0;
+    temp = TCNT2;
+    ticksElapsed = ticksElapsed + temp;
+    TCNT2 = 0;
   
     //Do something with the array here
 
@@ -90,6 +95,8 @@ static inline void cmdReadN(uint8_t N){
   sei();
 
   outerCounter = 0;
+
+  ticksElapsed = ticksElapsed + ( N * 256 );
 
 }
 
@@ -102,7 +109,7 @@ static inline void cmdReset(){
 
 static inline void initialize(){
   errorFlag = 0;
-  TCCR2B |= 0b00000101; //Prescaler of 1024
+  TCCR2B = 0b00000010; //Prescaler of 8
   DDRD |= 0b00010000;
   DDRD &= 0b11110111;  
 }
@@ -133,7 +140,7 @@ void loop() {
   //Prescaler is 1024
   //Time in seconds is 6.25e-8 * 1024 * ticksElapsed
 
-  double transmissionTime = 6.25e-8 * 1024 * ticksElapsed;
+  double transmissionTime = 6.25e-8 * 8 * ticksElapsed;
   //for(int i = 0; i < 255; i++){
   //  Serial.println(inputByteArray[i]);
   //}
@@ -141,7 +148,7 @@ void loop() {
   Serial.print("ticksElapsed = ");
   Serial.println(ticksElapsed);
   Serial.print("Total transmission time = ");
-  Serial.print(transmissionTime);
+  Serial.print(transmissionTime, 5);
   Serial.println(" seconds.");
 
   //One byte requires two transmissions

@@ -13,8 +13,8 @@ connects pin 4 on Slave to pin 3 on Master.
 #define DISABLE_TIMER_INTERRUPT TIMSK0 &= ~(1 << TOIE0)
 #define ENABLE_TIMER_INTERRUPT TIMSK0 |= (1 << OCIE0A)
 
-#define READ_N_TIMING_DELAY_HIGH NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
-#define READ_N_TIMING_DELAY_LOW  NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
+#define READ_N_TIMING_DELAY_HIGH NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
+#define READ_N_TIMING_DELAY_LOW  NOP;NOP;NOP;NOP;NOP//;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP;NOP
 
 enum state {   STATE_READY = 0b00000000,
         STATE_READING = 0b00000001,
@@ -81,6 +81,11 @@ static inline void writeNBytes(uint8_t N){
       ENABLE_TIMER_INTERRUPT;
       detachInterrupt(digitalPinToInterrupt(3));
       interruptFlag = 0; //Workaround. Remove when interrupt issue is fixed.
+      
+      //static variables, so reset on exiting the function
+      innerCounter = 0;
+      outerCounter = 0;
+      
       return;
     }
     
@@ -95,6 +100,7 @@ static inline void writeNBytes(uint8_t N){
   }
 
   //static variables, so reset on exiting the function
+  innerCounter = 0;
   outerCounter = 0;
   
   ENABLE_READ;
